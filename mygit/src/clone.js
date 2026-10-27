@@ -3,6 +3,7 @@ import path from 'path';
 import zlib from 'zlib';
 import { getGitRoot } from './utils/objects.js';
 import { init } from './init.js';
+import { fatal, ExitCode } from './utils/cli.js';
 
 async function getJSON(url) {
   try {
@@ -55,8 +56,7 @@ export async function clone(remoteUrl, targetDir) {
   const absTarget = path.resolve(process.cwd(), targetDir);
 
   if (fs.existsSync(absTarget)) {
-    console.error(`fatal: destination '${targetDir}' already exists`);
-    process.exit(1);
+    fatal(`fatal: destination '${targetDir}' already exists`, ExitCode.USAGE);
   }
 
   console.log(`Cloning from ${remoteUrl} into '${targetDir}'...`);
@@ -66,9 +66,7 @@ export async function clone(remoteUrl, targetDir) {
   try {
     payload = await getJSON(`${remoteUrl}/info/refs`);
   } catch(e) {
-    console.error(`fatal: could not reach '${remoteUrl}'`);
-    console.error(`  ${e.message}`);
-    process.exit(1);
+    fatal(`fatal: could not reach '${remoteUrl}'\n  ${e.message}`, ExitCode.NETWORK);
   }
 
   const { refs, objects } = payload;
@@ -81,8 +79,7 @@ export async function clone(remoteUrl, targetDir) {
   const tipSHA  = refs[`refs/heads/${branch}`];
 
   if (!tipSHA) {
-    console.error(`fatal: remote has no commits on '${branch}'`);
-    process.exit(1);
+    fatal(`fatal: remote has no commits on '${branch}'`, ExitCode.STATE);
   }
 
   // Create the target directory and init

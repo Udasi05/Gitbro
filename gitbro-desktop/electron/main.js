@@ -1,10 +1,72 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron')
+const fs = require('fs')
 const path = require('path')
 const { exec, spawn } = require('child_process');
 
 const isDev = process.env.NODE_ENV === 'development'
 let mainWindow;
 let webuiProcess = null;
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isGitbroRepo(repoPath) {
+  return fs.existsSync(path.join(repoPath, '.gitbro'));
+}
+
+async function waitForWebui(port, proc, timeoutMs = 10000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (proc.exitCode !== null || proc.killed) {
+      throw new Error('GitBro server stopped before it became ready');
+    }
+
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.status === 'gitbro api running') return data;
+      }
+    } catch {}
+
+    await delay(100);
+  }
+
+  throw new Error('Timed out waiting for GitBro repository server');
+}
+
+async function launchRepoServer(repoPath, port = 5005) {
+  if (!isGitbroRepo(repoPath)) {
+    return { error: 'Selected folder is not a GitBro repository. Run gitbro init in that folder first.' };
+  }
+
+  if (webuiProcess) {
+    webuiProcess.kill();
+    webuiProcess = null;
+  }
+
+  const gitbroJs = path.join(__dirname, '../../mygit/bin/gitbro.js');
+  webuiProcess = spawn(process.execPath, [gitbroJs, 'webui', '--port', String(port)], {
+    cwd: repoPath,
+    env: process.env
+  });
+
+  webuiProcess.on('error', (err) => {
+    console.error('Background API Server Error:', err);
+  });
+
+  try {
+    await waitForWebui(port, webuiProcess);
+    return { path: repoPath, port, success: true };
+  } catch (error) {
+    if (webuiProcess) {
+      webuiProcess.kill();
+      webuiProcess = null;
+    }
+    return { error: error.message };
+  }
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -53,59 +115,12 @@ ipcMain.handle('gitbro:selectRepo', async (event) => {
   }
 
   const selectedPath = result.filePaths[0];
-
-  // If a previous background server is running, kill it
-  if (webuiProcess) {
-    webuiProcess.kill();
-    webuiProcess = null;
-  }
-
-  return new Promise((resolve) => {
-    // Spawn the GitBro WebUI server dynamically in the background on the selected folder!
-    const gitbroJs = path.join(__dirname, '../../mygit/bin/gitbro.js');
-    
-    // We start it on port 5005
-    webuiProcess = spawn(process.execPath, [gitbroJs, 'webui', '--port', '5005'], {
-      cwd: selectedPath,
-      env: process.env
-    });
-
-    // Wait a brief moment for the local server to spin up internally before resolving
-    setTimeout(() => {
-      resolve({ 
-        path: selectedPath,
-        port: 5005,
-        success: true
-      });
-    }, 1000);
-
-    // Handle unexpected crashes
-    webuiProcess.on('error', (err) => {
-      console.error('Background API Server Error:', err);
-    });
-  });
+  return launchRepoServer(selectedPath, 5005);
 });
 
 // 1.5 Open a Specific Repository Directly
 ipcMain.handle('gitbro:openRepo', async (event, targetPath) => {
-  if (webuiProcess) {
-    webuiProcess.kill();
-    webuiProcess = null;
-  }
-
-  return new Promise((resolve) => {
-    const gitbroJs = path.join(__dirname, '../../mygit/bin/gitbro.js');
-    webuiProcess = spawn(process.execPath, [gitbroJs, 'webui', '--port', '5005'], {
-      cwd: targetPath,
-      env: process.env
-    });
-
-    setTimeout(() => {
-      resolve({ path: targetPath, port: 5005, success: true });
-    }, 1000);
-
-    webuiProcess.on('error', (err) => console.error('API Error:', err));
-  });
+  return launchRepoServer(targetPath, 5005);
 });
 
 // 2. Direct CLI executor for quick tasks (falling back to API usually though)

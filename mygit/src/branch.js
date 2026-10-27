@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { readObject, getGitRoot } from './utils/objects.js';
+import { fatal, ExitCode } from './utils/cli.js';
 
 function getHeadSHA(gitRoot) {
   const headPath = path.join(gitRoot, 'HEAD');
@@ -62,13 +63,11 @@ export function deleteBranch(branchName) {
   const refPath = path.join(gitRoot, 'refs', 'heads', branchName);
 
   if (!fs.existsSync(refPath)) {
-    console.error(`error: branch '${branchName}' not found.`);
-    process.exit(1);
+    fatal(`error: branch '${branchName}' not found.`, ExitCode.STATE);
   }
 
   if (branchName === current) {
-    console.error(`error: cannot delete branch '${branchName}' used by HEAD`);
-    process.exit(1);
+    fatal(`error: cannot delete branch '${branchName}' used by HEAD`, ExitCode.STATE);
   }
 
   fs.unlinkSync(refPath);
@@ -95,14 +94,12 @@ export function branch(branchName, options = {}) {
 
   const sha = getHeadSHA(gitRoot);
   if (!sha) {
-    console.error('fatal: Not a valid object name: HEAD (no commits yet)');
-    process.exit(1);
+    fatal('fatal: Not a valid object name: HEAD (no commits yet)', ExitCode.STATE);
   }
 
   const refPath = path.join(gitRoot, 'refs', 'heads', branchName);
   if (fs.existsSync(refPath)) {
-    console.error(`fatal: A branch named '${branchName}' already exists`);
-    process.exit(1);
+    fatal(`fatal: A branch named '${branchName}' already exists`, ExitCode.STATE);
   }
 
   fs.writeFileSync(refPath, sha + '\n');
@@ -135,8 +132,7 @@ export function checkout(branchName) {
   const refPath = path.join(gitRoot, 'refs', 'heads', branchName);
 
   if (!fs.existsSync(refPath)) {
-    console.error(`error: pathspec '${branchName}' did not match any branch`);
-    process.exit(1);
+    fatal(`error: pathspec '${branchName}' did not match any branch`, ExitCode.STATE);
   }
 
   const targetSHA = fs.readFileSync(refPath, 'utf8').trim();

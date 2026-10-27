@@ -3,6 +3,7 @@ import path from 'path';
 import { readObject, writeObject, getGitRoot } from './utils/objects.js';
 import { readIndex, writeIndex } from './add.js';
 import { getConfigValue } from './config.js';
+import { fatal, ExitCode } from './utils/cli.js';
 
 function getHeadCommit(gitRoot) {
   const head = fs.readFileSync(path.join(gitRoot, 'HEAD'), 'utf8').trim();
@@ -54,8 +55,7 @@ export function amend(newMessage) {
   const headSHA    = getHeadCommit(gitRoot);
 
   if (!headSHA) {
-    console.error('fatal: nothing to amend — no commits yet');
-    process.exit(1);
+    fatal('fatal: nothing to amend -- no commits yet', ExitCode.STATE);
   }
 
   // Read the existing last commit

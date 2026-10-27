@@ -184,7 +184,7 @@ gitbro log                       # View history
 ```bash
 gitbro add <files...>            # Stage files
 gitbro commit -m "message"       # Commit staged changes
-gitbro amend -m "new message"    # Amend last commit
+gitbro commit-amend -m "new message"    # Amend last commit (alias: `gitbro amend -m "new message"`)
 gitbro diff                      # Show unstaged changes
 gitbro diff --cached             # Show staged changes
 ```

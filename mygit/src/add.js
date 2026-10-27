@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { writeObject, getGitRoot } from './utils/objects.js';
 import { loadIgnore, isIgnored } from './utils/ignore.js';
+import { fatal, ExitCode } from './utils/cli.js';
 
 export function readIndex(gitRoot) {
   const indexPath = path.join(gitRoot, 'index');
@@ -51,8 +52,7 @@ export function add(files) {
         delete index[relPath];
         console.log(`remove '${relPath}'`);
       } else {
-        console.error(`fatal: pathspec '${file}' did not match any files`);
-        process.exit(1);
+        fatal(`fatal: pathspec '${file}' did not match any files`, ExitCode.USAGE);
       }
     } else {
       processPath(absPath);

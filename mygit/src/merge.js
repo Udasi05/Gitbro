@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { readObject, writeObject, getGitRoot } from './utils/objects.js';
 import { readIndex, writeIndex } from './add.js';
+import { fatal, ExitCode } from './utils/cli.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -145,16 +146,14 @@ export function merge(branchName) {
   const currentBranch = getCurrentBranch(gitRoot);
 
   if (!currentBranch) {
-    console.error('fatal: not on a branch (detached HEAD)');
-    process.exit(1);
+    fatal('fatal: not on a branch (detached HEAD)', ExitCode.STATE);
   }
 
   const ourSHA = getBranchSHA(gitRoot, currentBranch);
   const theirSHA = getBranchSHA(gitRoot, branchName);
 
   if (!theirSHA) {
-    console.error(`fatal: branch '${branchName}' not found`);
-    process.exit(1);
+    fatal(`fatal: branch '${branchName}' not found`, ExitCode.STATE);
   }
 
   if (ourSHA === theirSHA) {
@@ -186,8 +185,7 @@ export function merge(branchName) {
   // ── three-way merge ───────────────────────────────────────────────────────
   const lcaSHA = findLCA(ourSHA, theirSHA, gitRoot);
   if (!lcaSHA) {
-    console.error('fatal: no common ancestor found (unrelated histories)');
-    process.exit(1);
+    fatal('fatal: no common ancestor found (unrelated histories)', ExitCode.STATE);
   }
 
   const baseTree = lcaSHA ? getCommitTree(lcaSHA, gitRoot) : {};

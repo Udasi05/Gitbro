@@ -19,6 +19,13 @@ import { clone }                            from '../src/clone.js';
 import { amend }                            from '../src/amend.js';
 import { catFile }                          from '../src/catFile.js';
 import { rm }                               from '../src/rm.js';
+import { getCompletionScript, ExitCode }    from '../src/utils/cli.js';
+
+const completionCommands = [
+  'init', 'clone', 'config', 'hash-object', 'add', 'commit', 'log', 'status',
+  'branch', 'checkout', 'merge', 'diff', 'remote', 'push', 'pull', 'webui',
+  'commit-amend', 'amend', 'cat-file', 'rm', 'completion', 'help'
+];
 
 program
   .name('gitbro')
@@ -111,6 +118,22 @@ program.command('commit-amend')
   .option('-m, --message <message>', 'New commit message (optional)')
   .action((opts) => amend(opts.message));
 
+program.command('amend')
+  .description('Alias for commit-amend (amend the last commit)')
+  .option('-m, --message <message>', 'New commit message (optional)')
+  .action((opts) => amend(opts.message));
+
+program.command('completion [shell]')
+  .description('Print shell completion script for bash, zsh, or fish')
+  .action((shell = 'bash') => {
+    const normalized = String(shell).toLowerCase();
+    if (!['bash', 'zsh', 'fish'].includes(normalized)) {
+      console.error(`fatal: unsupported shell '${shell}'`);
+      process.exit(ExitCode.USAGE);
+    }
+    process.stdout.write(getCompletionScript(normalized, completionCommands));
+  });
+
 program.command('cat-file <hash>')
   .description('Provide content or type and size information for repository objects')
   .option('-p, --pretty', 'Pretty-print the contents of <hash> based on its type')
@@ -125,4 +148,17 @@ program.command('rm <files...>')
   .option('--cached', 'Only remove from the index, keep on disk')
   .action((files, opts) => rm(files, opts));
 
-program.parse(process.argv);
+program.exitOverride();
+
+try {
+  program.parse(process.argv);
+} catch (error) {
+  if (error.code === 'commander.helpDisplayed') {
+    process.exit(0);
+  }
+  if (error.code === 'commander.unknownCommand') {
+    process.exit(ExitCode.USAGE);
+  }
+  console.error(error.message || error);
+  process.exit(ExitCode.INTERNAL);
+}

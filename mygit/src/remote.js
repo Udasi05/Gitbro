@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { getGitRoot } from './utils/objects.js';
+import { fatal, ExitCode } from './utils/cli.js';
 
 const CONFIG_FILE = (gitRoot) => path.join(gitRoot, 'config');
 
@@ -35,8 +36,7 @@ export function remoteAdd(name, url) {
   const config = readConfig(gitRoot);
   const key = `remote "${name}"`;
   if (config[key]) {
-    console.error(`fatal: remote '${name}' already exists`);
-    process.exit(1);
+    fatal(`fatal: remote '${name}' already exists`, ExitCode.STATE);
   }
   config[key] = { url, fetch: `+refs/heads/*:refs/remotes/${name}/*` };
   writeConfig(gitRoot, config);
@@ -48,7 +48,7 @@ export function remoteRemove(name) {
   const gitRoot = getGitRoot();
   const config = readConfig(gitRoot);
   const key = `remote "${name}"`;
-  if (!config[key]) { console.error(`fatal: no such remote '${name}'`); process.exit(1); }
+  if (!config[key]) { fatal(`fatal: no such remote '${name}'`, ExitCode.STATE); }
   delete config[key];
   writeConfig(gitRoot, config);
   console.log(`Removed remote '${name}'`);
@@ -71,6 +71,6 @@ export function getRemoteUrl(name) {
   const gitRoot = getGitRoot();
   const config = readConfig(gitRoot);
   const key = `remote "${name}"`;
-  if (!config[key]) { console.error(`fatal: no such remote '${name}'`); process.exit(1); }
+  if (!config[key]) { fatal(`fatal: no such remote '${name}'`, ExitCode.STATE); }
   return config[key].url;
 }

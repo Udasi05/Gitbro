@@ -5,6 +5,27 @@ import { readObject, getGitRoot } from './utils/objects.js';
 import { readIndex } from './add.js';
 import { loadIgnore, isIgnored } from './utils/ignore.js';
 
+// Helper function to read files with retry logic for EBUSY errors (Windows file locking)
+function readFileSyncWithRetry(filepath, encoding = 'utf8', maxRetries = 3) {
+  let lastError;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return fs.readFileSync(filepath, encoding);
+    } catch (error) {
+      if (error.code === 'EBUSY' || error.code === 'EACCES') {
+        lastError = error;
+        // Exponential backoff: 10ms, 20ms, 40ms
+        const delay = 10 * Math.pow(2, attempt);
+        const start = Date.now();
+        while (Date.now() - start < delay) {} // Busy wait
+      } else {
+        throw error; // Re-throw non-EBUSY errors
+      }
+    }
+  }
+  throw lastError; // Throw after all retries exhausted
+}
+
 function getCurrentBranch(gitRoot) {
   const head = fs.readFileSync(path.join(gitRoot, 'HEAD'), 'utf8').trim();
   return head.startsWith('ref: refs/heads/') ? head.slice(16) : 'HEAD (detached)';
@@ -45,7 +66,7 @@ function readTreeFlat(treeSHA, gitRoot, prefix = '') {
 }
 
 function hashFileContent(filepath) {
-  const content = fs.readFileSync(filepath);
+  const content = readFileSyncWithRetry(filepath, null); // null for binary
   const header = Buffer.from(`blob ${content.length}\0`);
   return crypto.createHash('sha1').update(Buffer.concat([header, content])).digest('hex');
 }
@@ -112,7 +133,7 @@ export function getStatusData() {
     if (fileObj.type !== 'deleted') {
       const p = path.join(repoRoot, fileObj.file);
       if (fs.existsSync(p)) {
-        const c = fs.readFileSync(p, 'utf8');
+        const c = readFileSyncWithRetry(p, 'utf8');
         if (c.includes('<<<<<<< HEAD')) {
           fileObj.isConflict = true;
         }
